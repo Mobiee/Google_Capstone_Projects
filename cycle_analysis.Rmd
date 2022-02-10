@@ -7,6 +7,7 @@ output:
   pdf_document: default
 ---
 
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
@@ -17,7 +18,6 @@ knitr::opts_chunk$set(echo = TRUE)
 #install.packages("sqldf")
 #install.packages("lubridate")
 #install.packages("ggplot2")
-
 ## helps wrangle data
 library("tidyverse")  
 ## helps wrangle data
@@ -33,7 +33,6 @@ getwd()
 ```{r}
 ##Setting Directory
 #setwd("Desktop/RLearning/Cycle") 
-
 #COLLECT DATA
 #=====================
 # Upload Divvy datasets (csv files) here
@@ -49,7 +48,6 @@ m9_2021 <- read_csv("202109-divvy-tripdata.csv")
 m10_2021 <- read_csv("202110-divvy-tripdata.csv")
 m11_2021 <- read_csv("202111-divvy-tripdata.csv")
 m12_2021 <- read_csv("202112-divvy-tripdata.csv")
-
 ```
 
 ## Inspect the dataframes and look for incongruencies
@@ -86,7 +84,6 @@ m12_2021<-  mutate(m12_2021, ride_id = as.character(ride_id),rideable_type = as.
 ```{r}
 #Stack individual quarter's data frames into one big data frame
 cycle_trips <- bind_rows(m1_2021, m2_2021, m3_2021, m4_2021, m5_2021, m6_2021, m7_2021, m8_2021, m9_2021, m10_2021, m11_2021, m12_2021)
-
 # Remove lat, long, birthyear, and gender fields as this data was dropped beginning in 2020
 cycle_trips <- cycle_trips %>%  
   select(-c(start_lat, start_lng, end_lat, end_lng))
@@ -101,7 +98,6 @@ dim(cycle_trips)  #Dimensions of the data frame?
 head(cycle_trips)  #See the first 6 rows of data frame.  Also tail(all_trips)
 str(cycle_trips)  #See list of columns and data types (numeric, character, etc)
 summary(cycle_trips)  #Statistical summary of data. Mainly for numerics
-
 # Begin by seeing how many observations fall under each usertype
 table(cycle_trips$member_casual)
 # Add columns that list the date, month, day, and year of each ride
@@ -112,19 +108,15 @@ cycle_trips$month <- format(as.Date(cycle_trips$date), "%m")
 cycle_trips$day <- format(as.Date(cycle_trips$date), "%d")
 cycle_trips$year <- format(as.Date(cycle_trips$date), "%Y")
 cycle_trips$day_of_week <- format(as.Date(cycle_trips$date), "%A")
-
 # Add a "ride_length" calculation to all_trips (in seconds)
 # https://stat.ethz.ch/R-manual/R-devel/library/base/html/difftime.html
 cycle_trips$ride_lengths <- difftime(cycle_trips$ended_at,cycle_trips$started_at)
-
 # Inspect the structure of the columns
 str(cycle_trips)
-
 # Convert "ride_length" from Factor to numeric so we can run calculations on the data
 is.factor(cycle_trips$ride_lengths)
 cycle_trips$ride_lengths <- as.numeric(as.character(cycle_trips$ride_lengths))
 is.numeric(cycle_trips$ride_lengths)
-
 # Remove "bad" data
 # The dataframe includes a few hundred entries when bikes were taken out of docks and checked for quality by Divvy or ride_length was negative
 # We will create a new version of the dataframe (v2) since data is being removed
@@ -141,25 +133,24 @@ mean(cycle_trips_v2$ride_lengths) #straight average (total ride length / rides)
 median(cycle_trips_v2$ride_lengths) #midpoint number in the ascending array of ride lengths
 max(cycle_trips_v2$ride_lengths) #longest ride
 min(cycle_trips_v2$ride_lengths) #shortest ride
-
 # You can condense the four lines above to one line using summary() on the specific attribute
 summary(cycle_trips_v2$ride_lengths)
-
 # Compare members and casual users
 aggregate(cycle_trips_v2$ride_lengths ~ cycle_trips_v2$member_casual, FUN = mean)
 aggregate(cycle_trips_v2$ride_lengths ~ cycle_trips_v2$member_casual, FUN = median)
 aggregate(cycle_trips_v2$ride_lengths ~ cycle_trips_v2$member_casual, FUN = max)
 aggregate(cycle_trips_v2$ride_lengths ~ cycle_trips_v2$member_casual, FUN = min)
-
-
 # See the average ride time by each day for members vs casual users
 aggregate(cycle_trips_v2$ride_lengths ~ cycle_trips_v2$member_casual + cycle_trips_v2$day_of_week, FUN = mean)
-
 # Notice that the days of the week are out of order. Let's fix that.
 cycle_trips_v2$day_of_week <- ordered(cycle_trips_v2$day_of_week, levels=c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
-
 # Now, let's run the average ride time by each day for members vs casual users
 aggregate(cycle_trips_v2$ride_lengths ~ cycle_trips_v2$member_casual + cycle_trips_v2$day_of_week, FUN = mean)
+
+
+```
+Visualisation
+```{r}
 
 # analyze ridership data by type and weekday
 cycle_trips_v2%>% 
@@ -169,17 +160,66 @@ cycle_trips_v2%>%
             ,average_duration = mean(ride_lengths)) %>% 		# calculates the average duration
   arrange(member_casual, weekday)								# sorts
 
-# Let's visualize the number of rides by rider type
+
+
+# Let's visualize the number of rides by rider type during the Weekdays
+
+
 number_rides_type_plot <- cycle_trips_v2 %>% 
-  mutate(weekday = wday(started_at, label = TRUE)) %>% 
-  group_by(member_casual, weekday) %>% 
-  summarise(number_of_rides = n()
-            ,average_duration = mean(ride_lengths)) %>% 
-  arrange(member_casual, weekday)  %>% 
+  mutate(weekday = wday(started_at, label = TRUE)) %>%  #creates weekday field using wday()
+  group_by(member_casual,weekday) %>%  #groups by usertype and weekday
+  summarise(number_of_rides = n()							#calculates the number of rides and average duration 
+            ,average_duration = mean(ride_lengths)) %>% 		# calculates the average duration
+  arrange(member_casual, weekday)				%>% 				# sorts
   ggplot(aes(x = weekday, y = number_of_rides, fill = member_casual)) +
+  scale_x_discrete(name="Days of the Week ")+
+  scale_y_continuous(name=expression(Number~ of ~ Rides(x10^5)),
+                     labels=function(x) x / 100000)+
   scale_fill_manual(values=c(member = 'lightblue',  casual= 'pink')) +
   geom_col(position = "dodge")
+
 number_rides_type_plot
+
+# Let's visualize the number of rides by rider type during the 12 months.
+
+number_rides_type_monthly <-cycle_trips_v2 %>% 
+  mutate(months = month(started_at, label = TRUE)) %>% 
+  group_by(member_casual, months) %>% 
+  summarise(number_of_rides = n()
+            ,average_duration = mean(ride_lengths)) %>% 
+  arrange(member_casual, months)  %>% 
+  ggplot(aes(x = months, y = number_of_rides, fill = member_casual)) +
+  scale_x_discrete(name="Months ")+
+  scale_y_continuous(name=expression(Number~ of ~ Rides(x10^5)),
+                     labels=function(x) x / 100000)+
+  scale_fill_manual(values=c(member = 'lightblue',  casual= 'pink')) +
+  geom_col(position = "dodge")
+
+number_rides_type_monthly 
+
+#analyse the rides per hour
+cycle_trips_hour<- cycle_trips_v2 %>% 
+  mutate(hours=hour(cycle_trips_v2$started_at)
+          )
+cycle_trips_hour
+
+## Visualise trips per hour of each memebr type.
+hr <- c(0:23)
+number_rides_type_hourly <-cycle_trips_v2%>% 
+  mutate(hours=hour(started_at)) %>%  #creates weekday field using wday()
+  group_by(member_casual, hours) %>%  #groups by usertype and weekday
+  summarise(number_of_rides = n()							#calculates the number of rides and average duration 
+            ,average_duration = mean(ride_lengths)) %>% 		# calculates the average duration
+  arrange(member_casual, hours)				%>% 				# sorts
+  ggplot(aes(x = hours, y = number_of_rides, fill = member_casual)) +
+  scale_x_continuous(name="Hours of Day",labels=as.character(hr),breaks=hr)+
+  scale_y_continuous(name=expression(Number~ of ~ Rides(x10^5)),
+                     labels=function(x) x / 100000)+
+  scale_fill_manual(values=c(member = 'lightblue',  casual= 'pink')) +
+  geom_col(position = "dodge")
+
+number_rides_type_hourly
+
 # Let's create a visualization for average duration
 avg_duration_plot <- cycle_trips_v2 %>% 
   mutate(weekday = wday(started_at, label = TRUE)) %>% 
@@ -192,21 +232,18 @@ avg_duration_plot <- cycle_trips_v2 %>%
   geom_col(position = "dodge")
 avg_duration_plot 
 
+
 ### Changing the names of the rideable type to remove the underscore
 cycle_trips_v2$rideable_type[cycle_trips_v2$rideable_type == "classic_bike"] <- "Classic Bike"
 cycle_trips_v2$rideable_type[cycle_trips_v2$rideable_type == "docked_bike"] <- "Docked Bike"
 cycle_trips_v2$rideable_type[cycle_trips_v2$rideable_type == "electric_bike"] <- "Electric Bike"
-
 ride_type <- sqldf("select rideable_type,member_casual,count(rideable_type) as num_uses
                     from cycle_trips_v2
                     group by member_casual, rideable_type
                     ORDER BY count(rideable_type) DESC", method = "auto" )
 
-
 #ride_type
-
 # Let's create a visualization for number of ride_types of cycles between casual and members
-
 bike_plot <- ggplot(data = ride_type, aes(x = rideable_type, y = num_uses, fill = member_casual)) +
   scale_fill_manual(values=c(member = 'lightblue',  casual= 'pink')) +
   geom_col(position = "dodge") +
@@ -223,4 +260,3 @@ bike_plot
 counts <- aggregate(cycle_trips_v2$ride_lengths ~ cycle_trips_v2$member_casual + cycle_trips_v2$day_of_week, FUN = mean)
 write.csv(counts, file = '~/Desktop/RLearning/Cycle/avg_ride_length.csv')
 ```
-
